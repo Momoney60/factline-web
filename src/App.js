@@ -128,11 +128,31 @@ const CSS = `
   .ch-arrow.open { transform: rotate(180deg); }
 
   .ch-dropdown-menu {
-    position: absolute; top: calc(100% - 4px); left: 20px; right: 20px;
-    background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px;
-    z-index: 50; overflow: hidden; animation: fadeDown 0.15s ease;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
-  }
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 20px;
+  right: 20px;
+
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  z-index: 50;
+
+  /* key fix */
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+
+  animation: fadeDown 0.15s ease;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+}
+
+/* optional but nice: show a thin scrollbar on desktop */
+.ch-dropdown-menu::-webkit-scrollbar { width: 6px; }
+.ch-dropdown-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+.ch-dropdown-menu::-webkit-scrollbar-track { background: transparent; }
   .ch-dropdown-item {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
