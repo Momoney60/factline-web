@@ -233,6 +233,42 @@ const CSS = `
   }
   .ts-card .fact-title { font-size: 16px; }
 
+  /* BRIEFING (TOP TAB UPGRADE) */
+  .brief-head { padding: 18px 20px 10px; }
+  .brief-title { font-size: 20px; font-weight: 700; color: var(--text-0); margin-bottom: 6px; }
+  .brief-sub { font-family: var(--mono); font-size: 10px; color: var(--text-3); letter-spacing: 0.4px; line-height: 1.8; }
+  .brief-card {
+    margin: 0 20px 12px; padding: 16px 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    position: relative; overflow: hidden;
+  }
+  .brief-card:active { border-color: var(--border-light); }
+  .brief-rank {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    color: var(--text-3);
+    letter-spacing: 0.6px;
+  }
+  .brief-toprow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 10px; }
+  .brief-pill-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .brief-facts {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .brief-facts .detail-label { margin-top: 0; }
+  .brief-mini {
+    list-style: none;
+  }
+  .brief-mini li {
+    font-size: 14px; line-height: 1.55; color: var(--text-1);
+    padding: 4px 0 4px 16px; position: relative;
+  }
+  .brief-mini li::before { content: '▸'; position: absolute; left: 0; color: var(--text-3); font-size: 11px; }
+
   /* BRIGHT SIDE */
   .bright-header { padding: 24px 20px 6px; }
   .bright-title {
@@ -441,6 +477,71 @@ function FactDetail({ fact }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// TOP TAB HELPERS (client-side dedupe + nicer cards)
+// ═══════════════════════════════════════════════════════════════
+function normalizeTitle(s) {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// quick and safe: group very similar headlines
+function topicKeyFromTitle(title) {
+  const stop = new Set([
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "to",
+    "of",
+    "in",
+    "on",
+    "for",
+    "with",
+    "as",
+    "at",
+    "by",
+    "from",
+    "into",
+    "amid",
+    "after",
+    "before",
+    "over",
+    "up",
+    "down",
+    "new",
+    "live",
+    "update",
+    "updates",
+    "breaking",
+    "says",
+    "say",
+    "report",
+    "reports",
+    "reported",
+    "drives",
+    "driving",
+    "spike",
+    "spikes",
+    "surge",
+    "surges",
+  ]);
+  const toks = normalizeTitle(title)
+    .split(" ")
+    .filter((t) => t && t.length > 2 && !stop.has(t));
+  return toks.slice(0, 8).join("-");
+}
+
+function miniFacts(fact) {
+  if (!Array.isArray(fact?.facts)) return [];
+  return fact.facts.slice(0, 3);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
 export default function App() {
@@ -468,7 +569,7 @@ export default function App() {
           .from("Explore")
           .select("*")
           .order("rank", { ascending: true })
-          .limit(6),
+          .limit(12), // allow more, we will dedupe locally to get a clean Top 6
       ]);
 
       if (fRes.data) setFacts(fRes.data);
@@ -502,7 +603,7 @@ export default function App() {
             .from("Explore")
             .select("*")
             .order("rank", { ascending: true })
-            .limit(6)
+            .limit(12)
             .then(({ data }) => {
               if (data) setExplore(data);
             });
@@ -547,6 +648,26 @@ export default function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   };
 
+  // Build Top Briefing list (clean, minimal duplicates, still uses Explore ordering)
+  const topBriefing = (() => {
+    const seen = new Set();
+    const out = [];
+
+    for (const item of explore || []) {
+      const full = facts.find((f) => f.id === item.fact_id) || item;
+      const k = topicKeyFromTitle(full?.title);
+
+      if (!k) continue;
+      if (seen.has(k)) continue;
+
+      seen.add(k);
+      out.push({ item, full });
+
+      if (out.length >= 6) break;
+    }
+    return out;
+  })();
+
   return (
     <>
       <style>{CSS}</style>
@@ -589,7 +710,10 @@ export default function App() {
 
             {dropdownOpen && (
               <>
-                <div className="overlay" onClick={() => setDropdownOpen(false)} />
+                <div
+                  className="overlay"
+                  onClick={() => setDropdownOpen(false)}
+                />
                 <div className="ch-dropdown-menu">
                   {FEED_CHANNELS.map((ch) => (
                     <div
@@ -612,7 +736,9 @@ export default function App() {
                         />
                         <span>{ch.label}</span>
                       </div>
-                      <span className="ch-fact-count">{chCounts[ch.id] || 0}</span>
+                      <span className="ch-fact-count">
+                        {chCounts[ch.id] || 0}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -673,8 +799,10 @@ export default function App() {
                           <div className="fact-snippet">{fact.ctx}</div>
                         )}
                         <div className="fact-meta">
-                          {Array.isArray(fact.src) ? fact.src.join(" · ") : fact.src} ·{" "}
-                          {fact.agent}
+                          {Array.isArray(fact.src)
+                            ? fact.src.join(" · ")
+                            : fact.src}{" "}
+                          · {fact.agent}
                         </div>
                         {expandedId === fact.id && <FactDetail fact={fact} />}
                       </div>
@@ -691,47 +819,90 @@ export default function App() {
                 </>
               )}
 
-              {/* ═══ TOP STORIES ═══ */}
+              {/* ═══ TOP STORIES (BRIEFING) ═══ */}
               {tab === "top" && (
                 <>
-                  <div className="section-label" style={{ paddingTop: 20 }}>
-                    Top Stories · Ranked by velocity
+                  <div className="brief-head">
+                    <div className="brief-title">Top Briefing</div>
+                    <div className="brief-sub">
+                      Ranked by velocity · deduped for clarity
+                      {lastSync
+                        ? ` · last sync ${lastSync.toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}`
+                        : ""}
+                    </div>
                   </div>
-                  {explore.length > 0 ? (
-                    explore.map((item) => {
-                      const full = facts.find((f) => f.id === item.fact_id) || item;
+
+                  {topBriefing.length > 0 ? (
+                    topBriefing.map(({ item, full }, idx) => {
+                      const factsMini = miniFacts(full);
+                      const chMeta = FEED_CHANNELS.find((c) => c.id === item.ch);
+
                       return (
                         <div
                           key={item.id}
-                          className="ts-card anim-in"
+                          className="brief-card anim-in"
                           onClick={() => toggle(item.id)}
                         >
-                          <span className="ts-rank">#{item.rank}</span>
-                          <div className="fact-tags">
-                            <span
-                              className="tag tag-ch"
-                              style={
-                                item.ch === "live-event"
-                                  ? {
-                                      background: "rgba(239,68,68,0.08)",
-                                      color: "var(--red)",
-                                    }
-                                  : {}
-                              }
-                            >
-                              {item.ch === "live-event"
-                                ? item.live_tag || "live"
-                                : item.ch}
-                            </span>
-                            <StatusTag status={item.st} />
-                            <ConfText value={item.co} />
+                          <div className="brief-toprow">
+                            <div className="brief-pill-row">
+                              <span className="brief-rank">#{idx + 1}</span>
+
+                              <span
+                                className="tag tag-ch"
+                                style={
+                                  item.ch === "live-event"
+                                    ? {
+                                        background: "rgba(239,68,68,0.08)",
+                                        color: "var(--red)",
+                                      }
+                                    : chMeta?.color
+                                    ? {
+                                        background: `${chMeta.color}14`,
+                                        color: chMeta.color,
+                                      }
+                                    : {}
+                                }
+                              >
+                                {item.ch === "live-event"
+                                  ? item.live_tag || "live"
+                                  : item.ch}
+                              </span>
+
+                              <StatusTag status={item.st} />
+                              <ConfText value={item.co} />
+                            </div>
+
                             <HeatBar value={item.ht} />
                           </div>
-                          <div className="fact-title">{item.title}</div>
-                          <div className="fact-meta">
-                            {Array.isArray(item.src) ? item.src.join(" · ") : item.src}
+
+                          <div className="fact-title" style={{ fontSize: 18 }}>
+                            {item.title}
                           </div>
-                          {expandedId === item.id && full && <FactDetail fact={full} />}
+
+                          {/* mini facts = "reward" without tapping */}
+                          {factsMini.length > 0 && expandedId !== item.id && (
+                            <div className="brief-facts">
+                              <div className="detail-label">Key facts</div>
+                              <ul className="brief-mini">
+                                {factsMini.map((f, i) => (
+                                  <li key={i}>{f}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          <div className="fact-meta" style={{ marginTop: 10 }}>
+                            {Array.isArray(item.src)
+                              ? item.src.join(" · ")
+                              : item.src}
+                          </div>
+
+                          {expandedId === item.id && full && (
+                            <FactDetail fact={full} />
+                          )}
                         </div>
                       );
                     })
