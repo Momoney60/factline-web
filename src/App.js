@@ -11,19 +11,59 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ═══════════════════════════════════════════════════════════════
 // CHANNELS
+// Note: "top" is a tab, not a channel in DB. We keep it in the list
+// because you included it, but we will NOT show it in the dropdown.
 // ═══════════════════════════════════════════════════════════════
 const CHANNELS = [
+  { id: "top", label: "Top", color: "#60a5fa" },
+
   { id: "world", label: "World", color: "#3b82f6" },
   { id: "us", label: "U.S.", color: "#6366f1" },
+  { id: "politics", label: "Politics", color: "#a855f7" },
+
   { id: "business", label: "Business", color: "#8b5cf6" },
+  { id: "markets", label: "Markets", color: "#eab308" },
+  { id: "economy", label: "Economy", color: "#f59e0b" },
+
   { id: "tech", label: "Tech", color: "#06b6d4" },
+  { id: "ai", label: "AI", color: "#22d3ee" },
+  { id: "cyber", label: "Cyber", color: "#0ea5e9" },
+
   { id: "science", label: "Science", color: "#14b8a6" },
   { id: "health", label: "Health", color: "#22c55e" },
-  { id: "markets", label: "Markets", color: "#eab308" },
+  { id: "energy", label: "Energy", color: "#84cc16" },
+
+  { id: "real-estate", label: "Real Estate", color: "#fb7185" },
+  { id: "law", label: "Law", color: "#94a3b8" },
+
   { id: "sports", label: "Sports", color: "#f97316" },
   { id: "nhl", label: "NHL", color: "#0ea5e9" },
+
   { id: "climate", label: "Climate", color: "#10b981" },
+  { id: "bright", label: "Bright Side", color: "#fbbf24" },
+  { id: "live-event", label: "Live", color: "#ef4444" },
 ];
+
+// Channels that actually exist as Facts.ch values (exclude "top")
+const FEED_CHANNELS = CHANNELS.filter((c) => c.id !== "top");
+
+// ═══════════════════════════════════════════════════════════════
+// MISSION COPY
+// ═══════════════════════════════════════════════════════════════
+const MISSION = {
+  title: "Mission",
+  bullets: [
+    "A feed built for information, not engagement.",
+    "No likes. No comments. No creators chasing clicks.",
+    "Each item includes sources and a confidence score.",
+    '"Confirmed" means multiple independent sources matched the same story.',
+    '"Developing" means a single source or incomplete corroboration.',
+    "No opinion. Structured summaries of reported facts.",
+    "Corrections happen on the next engine cycle.",
+  ],
+  footnote:
+    "ReadOnly is an information layer. Always verify directly with the linked sources.",
+};
 
 // ═══════════════════════════════════════════════════════════════
 // HEAT COLOR HELPER
@@ -268,9 +308,7 @@ const CSS = `
 // ═══════════════════════════════════════════════════════════════
 // HEAT BAR — fully inline, no CSS classes, guaranteed visible
 // ═══════════════════════════════════════════════════════════════
-
 function HeatBar({ value, size = "sm" }) {
-  // Map 50-100 range to 15-100% so differences are dramatically visible
   const pct = Math.max(15, Math.min(100, ((value - 40) / 60) * 100));
   const col = heatColor(value);
   const trackW = size === "lg" ? "100%" : 56;
@@ -330,7 +368,6 @@ function HeatBar({ value, size = "sm" }) {
 // ═══════════════════════════════════════════════════════════════
 // SMALL COMPONENTS
 // ═══════════════════════════════════════════════════════════════
-
 function StatusTag({ status }) {
   return (
     <span
@@ -386,13 +423,14 @@ function FactDetail({ fact }) {
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
-
 export default function App() {
   const [facts, setFacts] = useState([]);
   const [explore, setExplore] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [tab, setTab] = useState("feed");
   const [activeCh, setActiveCh] = useState("world");
+
   const [expandedId, setExpandedId] = useState(null);
   const [lastSync, setLastSync] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -412,8 +450,10 @@ export default function App() {
           .order("rank", { ascending: true })
           .limit(6),
       ]);
+
       if (fRes.data) setFacts(fRes.data);
       if (eRes.data) setExplore(eRes.data);
+
       setLastSync(new Date());
     } catch (e) {
       console.error(e);
@@ -424,6 +464,7 @@ export default function App() {
 
   useEffect(() => {
     fetchAll();
+
     const ch = supabase
       .channel("fl-rt")
       .on(
@@ -448,7 +489,9 @@ export default function App() {
         }
       )
       .subscribe();
+
     const poll = setInterval(fetchAll, 60000);
+
     return () => {
       supabase.removeChannel(ch);
       clearInterval(poll);
@@ -461,17 +504,22 @@ export default function App() {
   const hasLive = liveFacts.length > 0;
 
   const chCounts = {};
-  CHANNELS.forEach((c) => {
+  FEED_CHANNELS.forEach((c) => {
     chCounts[c.id] = facts.filter((f) => f.ch === c.id).length;
   });
-  const activeMeta = CHANNELS.find((c) => c.id === activeCh);
+
+  const activeMeta =
+    FEED_CHANNELS.find((c) => c.id === activeCh) || FEED_CHANNELS[0];
 
   const toggle = (id) => setExpandedId(expandedId === id ? null : id);
+
   const switchTab = (t) => {
     setTab(t);
     setExpandedId(null);
+    setDropdownOpen(false);
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   };
+
   const selectChannel = (chId) => {
     setActiveCh(chId);
     setDropdownOpen(false);
@@ -486,7 +534,7 @@ export default function App() {
         {/* TOP HEADER */}
         <div className="top-header">
           <div className="brand">
-            FACT<span>LINE</span>
+            READ<span>ONLY</span>
           </div>
           <div className="sync-badge">
             <span className="sync-dot" />
@@ -516,19 +564,14 @@ export default function App() {
                   {chCounts[activeCh] || 0} facts
                 </span>
               </div>
-              <span className={`ch-arrow ${dropdownOpen ? "open" : ""}`}>
-                ▾
-              </span>
+              <span className={`ch-arrow ${dropdownOpen ? "open" : ""}`}>▾</span>
             </button>
 
             {dropdownOpen && (
               <>
-                <div
-                  className="overlay"
-                  onClick={() => setDropdownOpen(false)}
-                />
+                <div className="overlay" onClick={() => setDropdownOpen(false)} />
                 <div className="ch-dropdown-menu">
-                  {CHANNELS.map((ch) => (
+                  {FEED_CHANNELS.map((ch) => (
                     <div
                       key={ch.id}
                       className={`ch-dropdown-item ${
@@ -549,9 +592,7 @@ export default function App() {
                         />
                         <span>{ch.label}</span>
                       </div>
-                      <span className="ch-fact-count">
-                        {chCounts[ch.id] || 0}
-                      </span>
+                      <span className="ch-fact-count">{chCounts[ch.id] || 0}</span>
                     </div>
                   ))}
                 </div>
@@ -565,9 +606,7 @@ export default function App() {
           {loading ? (
             <div className="loading-wrap">
               <div className="spinner" />
-              <div className="empty-text">
-                CONNECTING TO INTELLIGENCE FEED...
-              </div>
+              <div className="empty-text">CONNECTING TO INTELLIGENCE FEED...</div>
             </div>
           ) : (
             <>
@@ -585,9 +624,7 @@ export default function App() {
                           <span className="live-dot" />
                           LIVE{" "}
                           {lf.live_tag
-                            ? `· ${lf.live_tag
-                                .toUpperCase()
-                                .replace(/-/g, " ")}`
+                            ? `· ${lf.live_tag.toUpperCase().replace(/-/g, " ")}`
                             : ""}
                         </div>
                         <div className="fact-title" style={{ fontSize: 15 }}>
@@ -616,10 +653,8 @@ export default function App() {
                           <div className="fact-snippet">{fact.ctx}</div>
                         )}
                         <div className="fact-meta">
-                          {Array.isArray(fact.src)
-                            ? fact.src.join(" · ")
-                            : fact.src}{" "}
-                          · {fact.agent}
+                          {Array.isArray(fact.src) ? fact.src.join(" · ") : fact.src} ·{" "}
+                          {fact.agent}
                         </div>
                         {expandedId === fact.id && <FactDetail fact={fact} />}
                       </div>
@@ -644,8 +679,7 @@ export default function App() {
                   </div>
                   {explore.length > 0 ? (
                     explore.map((item) => {
-                      const full =
-                        facts.find((f) => f.id === item.fact_id) || item;
+                      const full = facts.find((f) => f.id === item.fact_id) || item;
                       return (
                         <div
                           key={item.id}
@@ -675,13 +709,9 @@ export default function App() {
                           </div>
                           <div className="fact-title">{item.title}</div>
                           <div className="fact-meta">
-                            {Array.isArray(item.src)
-                              ? item.src.join(" · ")
-                              : item.src}
+                            {Array.isArray(item.src) ? item.src.join(" · ") : item.src}
                           </div>
-                          {expandedId === item.id && full && (
-                            <FactDetail fact={full} />
-                          )}
+                          {expandedId === item.id && full && <FactDetail fact={full} />}
                         </div>
                       );
                     })
@@ -704,8 +734,8 @@ export default function App() {
                   <div className="bright-header">
                     <div className="bright-title">The Bright Side</div>
                     <div className="bright-sub">
-                      Breakthroughs, discoveries, and stories worth sharing at
-                      the dinner table.
+                      Breakthroughs, discoveries, and stories worth sharing at the
+                      dinner table.
                     </div>
                   </div>
                   {brightFacts.length > 0 ? (
@@ -724,9 +754,7 @@ export default function App() {
                           <div className="fact-snippet">{fact.ctx}</div>
                         )}
                         <div className="fact-meta">
-                          {Array.isArray(fact.src)
-                            ? fact.src.join(" · ")
-                            : fact.src}
+                          {Array.isArray(fact.src) ? fact.src.join(" · ") : fact.src}
                         </div>
                         {expandedId === fact.id && <FactDetail fact={fact} />}
                       </div>
@@ -753,6 +781,7 @@ export default function App() {
                   >
                     ● Live Events
                   </div>
+
                   {liveFacts.length > 0 ? (
                     liveFacts.map((fact) => (
                       <div
@@ -760,40 +789,35 @@ export default function App() {
                         className="live-card"
                         onClick={() => toggle(fact.id)}
                       >
-                        <div
-                          className="live-indicator"
-                          style={{ marginBottom: 10 }}
-                        >
+                        <div className="live-indicator" style={{ marginBottom: 10 }}>
                           <span className="live-dot" />
                           LIVE{" "}
                           {fact.live_tag
-                            ? `· ${fact.live_tag
-                                .toUpperCase()
-                                .replace(/-/g, " ")}`
+                            ? `· ${fact.live_tag.toUpperCase().replace(/-/g, " ")}`
                             : ""}
                         </div>
+
                         <div className="fact-tags">
                           <StatusTag status={fact.st} />
                           <ConfText value={fact.co} />
                           <HeatBar value={fact.ht} />
                         </div>
+
                         <div className="fact-title" style={{ fontSize: 19 }}>
                           {fact.title}
                         </div>
+
                         {expandedId !== fact.id && fact.ctx && (
-                          <div
-                            className="fact-snippet"
-                            style={{ WebkitLineClamp: 3 }}
-                          >
+                          <div className="fact-snippet" style={{ WebkitLineClamp: 3 }}>
                             {fact.ctx}
                           </div>
                         )}
+
                         <div className="fact-meta">
-                          {Array.isArray(fact.src)
-                            ? fact.src.join(" · ")
-                            : fact.src}{" "}
-                          · {fact.agent}
+                          {Array.isArray(fact.src) ? fact.src.join(" · ") : fact.src} ·{" "}
+                          {fact.agent}
                         </div>
+
                         {expandedId === fact.id && <FactDetail fact={fact} />}
                       </div>
                     ))
@@ -807,6 +831,31 @@ export default function App() {
                       </div>
                     </div>
                   )}
+                </>
+              )}
+
+              {/* ═══ MISSION ═══ */}
+              {tab === "mission" && (
+                <>
+                  <div className="section-label" style={{ paddingTop: 20 }}>
+                    {MISSION.title}
+                  </div>
+
+                  <div className="ts-card anim-in" style={{ marginTop: 8 }}>
+                    <div className="fact-title" style={{ marginBottom: 10 }}>
+                      Why this exists
+                    </div>
+
+                    <ul className="fact-list">
+                      {MISSION.bullets.map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+
+                    <div className="fact-meta" style={{ marginTop: 12 }}>
+                      {MISSION.footnote}
+                    </div>
+                  </div>
                 </>
               )}
             </>
@@ -831,6 +880,7 @@ export default function App() {
             </span>
             <span className="nav-label">Feed</span>
           </button>
+
           <button
             className={`nav-btn ${tab === "top" ? "active" : ""}`}
             onClick={() => switchTab("top")}
@@ -845,8 +895,9 @@ export default function App() {
             >
               {tab === "top" ? "◈" : "◇"}
             </span>
-            <span className="nav-label">Top Stories</span>
+            <span className="nav-label">Top</span>
           </button>
+
           <button
             className={`nav-btn ${tab === "bright" ? "active" : ""}`}
             onClick={() => switchTab("bright")}
@@ -868,9 +919,27 @@ export default function App() {
               className="nav-label"
               style={tab === "bright" ? { color: "#fbbf24" } : {}}
             >
-              Bright Side
+              Bright
             </span>
           </button>
+
+          <button
+            className={`nav-btn ${tab === "mission" ? "active" : ""}`}
+            onClick={() => switchTab("mission")}
+          >
+            <span
+              className="nav-icon"
+              style={
+                tab === "mission"
+                  ? { filter: "drop-shadow(0 0 4px rgba(59,130,246,0.5))" }
+                  : {}
+              }
+            >
+              {tab === "mission" ? "⬡" : "⬢"}
+            </span>
+            <span className="nav-label">Mission</span>
+          </button>
+
           {hasLive && (
             <button
               className={`nav-btn ${tab === "live" ? "active" : ""}`}
