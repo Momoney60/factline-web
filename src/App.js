@@ -76,6 +76,26 @@ function heatColor(v) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// RELATIVE TIME HELPER
+// ═══════════════════════════════════════════════════════════════
+function timeAgo(input) {
+  if (!input) return "";
+  // Handle "Just now" or other plain strings
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return input;
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+  if (diffMs < 0) return "Just now";
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CSS
 // ═══════════════════════════════════════════════════════════════
 const CSS = `
@@ -218,6 +238,26 @@ const CSS = `
   .fact-list li::before { content: '▸'; position: absolute; left: 0; color: var(--text-3); font-size: 11px; }
   .detail-ctx { font-size: 14px; line-height: 1.6; color: var(--text-2); }
   .detail-intel { font-family: var(--mono); font-size: 9px; color: var(--text-3); line-height: 2; }
+
+  /* SOURCE LINKS */
+  .source-link {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: var(--bg-1); border: 1px solid var(--border);
+    border-radius: 8px; text-decoration: none; transition: border-color 0.15s, background 0.15s;
+  }
+  .source-link:active, .source-link:hover { border-color: var(--border-light); background: var(--bg-3); }
+  .source-name { font-size: 13px; font-weight: 600; color: var(--text-0); }
+  .source-arrow { font-family: var(--mono); font-size: 12px; color: var(--blue); font-weight: 700; }
+  .source-nolink { opacity: 0.6; cursor: default; }
+  .source-nolink:hover, .source-nolink:active { border-color: var(--border); background: var(--bg-1); }
+
+  /* SOURCE CHIPS in meta row */
+  .src-chip {
+    font-family: var(--mono); font-size: 9px; font-weight: 500; color: var(--text-2);
+    text-decoration: none; padding: 2px 6px; background: var(--bg-2);
+    border: 1px solid var(--border); border-radius: 4px; transition: color 0.15s;
+  }
+  .src-chip:hover { color: var(--blue); border-color: var(--border-light); }
 
   /* TOP STORIES */
   .ts-card {
@@ -453,7 +493,32 @@ function ConfText({ value }) {
   );
 }
 
+function SourceMeta({ fact }) {
+  const sources = Array.isArray(fact.src) ? fact.src : [];
+  const links = Array.isArray(fact.links) ? fact.links : [];
+  const updated = timeAgo(fact.upd || fact.created_at);
+
+  return (
+    <div className="fact-meta" style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginTop: 8 }}>
+      {sources.map((s, i) => {
+        const url = links[i] || null;
+        return url ? (
+          <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="src-chip" onClick={(e) => e.stopPropagation()}>
+            {s} ↗
+          </a>
+        ) : (
+          <span key={i} className="src-chip">{s}</span>
+        );
+      })}
+      {updated && <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--text-3)", marginLeft: "auto" }}>{updated}</span>}
+    </div>
+  );
+}
+
 function FactDetail({ fact }) {
+  const links = Array.isArray(fact.links) ? fact.links : [];
+  const sources = Array.isArray(fact.src) ? fact.src : [];
+
   return (
     <div className="fact-detail anim-in">
       <div className="detail-label">Verified Facts</div>
@@ -466,6 +531,31 @@ function FactDetail({ fact }) {
       )}
       <div className="detail-label">Context</div>
       <div className="detail-ctx">{fact.ctx || "No additional context."}</div>
+
+      <div className="detail-label">Sources</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {sources.map((s, i) => {
+          const url = links[i] || null;
+          return url ? (
+            <a
+              key={i}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="source-link"
+            >
+              <span className="source-name">{s}</span>
+              <span className="source-arrow">↗</span>
+            </a>
+          ) : (
+            <div key={i} className="source-link source-nolink">
+              <span className="source-name">{s}</span>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="detail-label">Heat Score</div>
       <HeatBar value={fact.ht} size="lg" />
       <div className="detail-label">Intelligence</div>
@@ -620,8 +710,29 @@ export default function App() {
   }, [fetchAll]);
 
   const liveFacts = facts.filter((f) => f.ch === "live-event");
-  const brightFacts = facts.filter((f) => f.ch === "bright").slice(0, 12);
-  const channelFacts = facts.filter((f) => f.ch === activeCh).slice(0, 20);
+
+  // Client-side dedup: remove near-duplicate titles within same view
+  const dedup = (items) => {
+    const out = [];
+    for (const item of items) {
+      const norm = normalizeTitle(item.title);
+      const words = new Set(norm.split(" ").filter(Boolean));
+      let isDupe = false;
+      for (const kept of out) {
+        const kNorm = normalizeTitle(kept.title);
+        const kWords = new Set(kNorm.split(" ").filter(Boolean));
+        let inter = 0;
+        for (const w of words) if (kWords.has(w)) inter++;
+        const union = words.size + kWords.size - inter;
+        if (union > 0 && inter / union >= 0.45) { isDupe = true; break; }
+      }
+      if (!isDupe) out.push(item);
+    }
+    return out;
+  };
+
+  const brightFacts = dedup(facts.filter((f) => f.ch === "bright")).slice(0, 12);
+  const channelFacts = dedup(facts.filter((f) => f.ch === activeCh)).slice(0, 20);
   const hasLive = liveFacts.length > 0;
 
   const chCounts = {};
@@ -777,7 +888,9 @@ export default function App() {
                           {lf.title}
                         </div>
                         <div className="fact-meta" style={{ marginTop: 6 }}>
-                          {Array.isArray(lf.src) ? lf.src.join(" · ") : lf.src}
+                          {Array.isArray(lf.src) ? lf.src.map((s, i) => (
+                            <span key={i} className="src-chip" style={{ marginRight: 4 }}>{s}</span>
+                          )) : lf.src}
                         </div>
                       </div>
                     ))}
@@ -798,12 +911,7 @@ export default function App() {
                         {expandedId !== fact.id && fact.ctx && (
                           <div className="fact-snippet">{fact.ctx}</div>
                         )}
-                        <div className="fact-meta">
-                          {Array.isArray(fact.src)
-                            ? fact.src.join(" · ")
-                            : fact.src}{" "}
-                          · {fact.agent}
-                        </div>
+                        <SourceMeta fact={fact} />
                         {expandedId === fact.id && <FactDetail fact={fact} />}
                       </div>
                     ))
@@ -894,11 +1002,7 @@ export default function App() {
                             </div>
                           )}
 
-                          <div className="fact-meta" style={{ marginTop: 10 }}>
-                            {Array.isArray(item.src)
-                              ? item.src.join(" · ")
-                              : item.src}
-                          </div>
+                          <SourceMeta fact={full || item} />
 
                           {expandedId === item.id && full && (
                             <FactDetail fact={full} />
@@ -944,9 +1048,7 @@ export default function App() {
                         {expandedId !== fact.id && fact.ctx && (
                           <div className="fact-snippet">{fact.ctx}</div>
                         )}
-                        <div className="fact-meta">
-                          {Array.isArray(fact.src) ? fact.src.join(" · ") : fact.src}
-                        </div>
+                        <SourceMeta fact={fact} />
                         {expandedId === fact.id && <FactDetail fact={fact} />}
                       </div>
                     ))
@@ -1004,10 +1106,7 @@ export default function App() {
                           </div>
                         )}
 
-                        <div className="fact-meta">
-                          {Array.isArray(fact.src) ? fact.src.join(" · ") : fact.src} ·{" "}
-                          {fact.agent}
-                        </div>
+                        <SourceMeta fact={fact} />
 
                         {expandedId === fact.id && <FactDetail fact={fact} />}
                       </div>
